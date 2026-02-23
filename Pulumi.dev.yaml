@@ -1,0 +1,7 @@
+config:
+  adguard-hetzner:serverType: cx23
+  adguard-hetzner:location: fsn1
+  adguard-hetzner:domain: example.com
+  adguard-hetzner:tailnetDnsName: ts.net
+  adguard-hetzner:tailscaleAuthKey:
+    secure: AAABAOdSyo10Blk85wwoFI7sACw1W/7gNNMFkFdorzwR8IEGYw==

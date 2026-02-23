@@ -1,0 +1,161 @@
+name: Pulumi Destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      stack_name:
+        description: "Stack name to destroy (e.g., dev, prod)"
+        required: true
+        type: string
+      confirm_destroy:
+        description: 'Type "DESTROY" to confirm deletion'
+        required: true
+        type: string
+      skip_preview:
+        description: "Skip preview and destroy immediately"
+        required: false
+        type: boolean
+        default: false
+
+# Explicit permissions - principle of least privilege
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate:
+    name: Validate Destroy Request
+    runs-on: ubuntu-latest
+    outputs:
+      confirmed: ${{ steps.check.outputs.confirmed }}
+    steps:
+      - name: Check confirmation
+        id: check
+        run: |
+          if [ "${{ github.event.inputs.confirm_destroy }}" != "DESTROY" ]; then
+            echo "❌ Confirmation failed. You must type 'DESTROY' to proceed."
+            echo "confirmed=false" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "✅ Confirmation validated"
+            echo "confirmed=true" >> $GITHUB_OUTPUT
+          fi
+
+  preview-destroy:
+    name: Preview Destroy
+    runs-on: ubuntu-latest
+    needs: validate
+    if: needs.validate.outputs.confirmed == 'true' && github.event.inputs.skip_preview == 'false'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Pulumi Preview Destroy
+        uses: pulumi/actions@v6.6.1
+        with:
+          command: preview
+          stack-name: ${{ github.event.inputs.stack_name }}
+          expect-no-changes: false
+          refresh: true
+          diff: true
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+      - name: Show what will be destroyed
+        run: |
+          echo "⚠️  WARNING: The following resources will be DESTROYED:"
+          echo "Stack: ${{ github.event.inputs.stack_name }}"
+          echo ""
+          echo "Resources to be deleted:"
+          echo "- Hetzner Cloud Server (AdGuard Home)"
+          echo "- Firewall rules"
+          echo "- SSH keys"
+          echo "- Cloudflare DNS record (if configured)"
+          echo "- All associated infrastructure"
+          echo ""
+          echo "💡 Review the preview above carefully before proceeding."
+
+  destroy:
+    name: Destroy Stack
+    runs-on: ubuntu-latest
+    needs: [validate, preview-destroy]
+    if: |
+      always() &&
+      needs.validate.outputs.confirmed == 'true' &&
+      (needs.preview-destroy.result == 'success' || github.event.inputs.skip_preview == 'true')
+    environment:
+      name: destruction
+      url: https://app.pulumi.com/${{ github.repository_owner }}/adguard-hetzner/${{ github.event.inputs.stack_name }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Final confirmation check
+        run: |
+          echo "🚨 FINAL WARNING 🚨"
+          echo "About to destroy stack: ${{ github.event.inputs.stack_name }}"
+          echo "This action CANNOT be undone!"
+          sleep 5
+
+      - name: Pulumi Destroy
+        uses: pulumi/actions@v6.6.1
+        with:
+          command: destroy
+          stack-name: ${{ github.event.inputs.stack_name }}
+          refresh: true
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+      - name: Destruction complete
+        run: |
+          echo "✅ Stack destroyed successfully"
+          echo ""
+          echo "📋 Post-destruction checklist:"
+          echo "- [ ] Verify resources removed in Hetzner console"
+          echo "- [ ] Remove Tailscale device from admin console"
+          echo "- [ ] Remove Cloudflare DNS record if not auto-deleted"
+          echo "- [ ] Update documentation if needed"
+          echo "- [ ] Consider removing stack from Pulumi Cloud if no longer needed"
+
+  notify:
+    name: Notify Destruction
+    runs-on: ubuntu-latest
+    needs: destroy
+    if: always()
+    steps:
+      - name: Report status
+        run: |
+          if [ "${{ needs.destroy.result }}" == "success" ]; then
+            echo "✅ Stack destroyed successfully"
+            echo "Stack: ${{ github.event.inputs.stack_name }}"
+            echo "Triggered by: ${{ github.actor }}"
+            echo "Time: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          else
+            echo "❌ Stack destruction failed"
+            echo "Check the logs above for details"
+            exit 1
+          fi

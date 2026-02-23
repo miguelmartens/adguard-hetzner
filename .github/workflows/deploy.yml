@@ -1,0 +1,154 @@
+name: Manual Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      stack_name:
+        description: "Stack name to deploy (e.g., dev, prod)"
+        required: true
+        type: string
+      skip_preview:
+        description: "Skip preview and deploy immediately"
+        required: false
+        type: boolean
+        default: false
+      refresh:
+        description: "Refresh state before deployment"
+        required: false
+        type: boolean
+        default: true
+
+# Explicit permissions - principle of least privilege
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate:
+    name: Validate Input
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate stack name
+        run: |
+          if [ -z "${{ github.event.inputs.stack_name }}" ]; then
+            echo "❌ Stack name is required"
+            exit 1
+          fi
+          echo "✅ Deploying to stack: ${{ github.event.inputs.stack_name }}"
+          echo "🔄 Refresh enabled: ${{ github.event.inputs.refresh }}"
+          echo "⏭️  Skip preview: ${{ github.event.inputs.skip_preview }}"
+
+  preview:
+    name: Preview Changes
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event.inputs.skip_preview == 'false'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Pulumi Preview
+        uses: pulumi/actions@v6.6.1
+        with:
+          command: preview
+          stack-name: ${{ github.event.inputs.stack_name }}
+          expect-no-changes: false
+          refresh: ${{ github.event.inputs.refresh }}
+          diff: true
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+      - name: Preview summary
+        run: |
+          echo "📋 Preview completed successfully"
+          echo "Stack: ${{ github.event.inputs.stack_name }}"
+          echo ""
+          echo "💡 Review the changes above carefully before proceeding with deployment."
+
+  deploy:
+    name: Deploy Stack
+    runs-on: ubuntu-latest
+    needs: [validate, preview]
+    if: |
+      always() &&
+      needs.validate.result == 'success' &&
+      (needs.preview.result == 'success' || needs.preview.result == 'skipped')
+    environment:
+      name: ${{ github.event.inputs.stack_name }}
+      url: https://app.pulumi.com/${{ github.repository_owner }}/adguard-hetzner/${{ github.event.inputs.stack_name }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deployment notice
+        run: |
+          echo "🚀 Starting deployment..."
+          echo "Stack: ${{ github.event.inputs.stack_name }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo "Time: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+
+      - name: Pulumi Deploy
+        uses: pulumi/actions@v6.6.1
+        with:
+          command: up
+          stack-name: ${{ github.event.inputs.stack_name }}
+          refresh: ${{ github.event.inputs.refresh }}
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+      - name: Deployment complete
+        run: |
+          echo "✅ Deployment completed successfully"
+          echo ""
+          echo "📋 Post-deployment checklist:"
+          echo "- [ ] Verify resources in Hetzner console"
+          echo "- [ ] Access web UI via Tailscale (https://<hostname>.<tailnet>.ts.net)"
+          echo "- [ ] Change AdGuard admin password (Settings → Profile)"
+          echo "- [ ] Verify DoH: curl -H 'Accept: application/dns-json' 'https://dns.<domain>/dns-query?name=example.com&type=A'"
+          echo ""
+          echo "🔗 View in Pulumi Console:"
+          echo "   https://app.pulumi.com/${{ github.repository_owner }}/adguard-hetzner/${{ github.event.inputs.stack_name }}"
+
+  notify:
+    name: Notify Result
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: always()
+    steps:
+      - name: Report status
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "✅ Deployment successful"
+            echo "Stack: ${{ github.event.inputs.stack_name }}"
+            echo "Triggered by: ${{ github.actor }}"
+            echo "Time: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          else
+            echo "❌ Deployment failed"
+            echo "Stack: ${{ github.event.inputs.stack_name }}"
+            echo "Check the logs above for details"
+            exit 1
+          fi

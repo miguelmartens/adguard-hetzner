@@ -1,0 +1,11 @@
+# Copy to Pulumi.dev.yaml or Pulumi.prod.yaml and fill in values.
+# Secrets: use `pulumi config set --secret <key> <value>`
+#
+# config:
+#   adguard-hetzner:serverType: cx23
+#   adguard-hetzner:location: fsn1
+#   adguard-hetzner:domain: example.com
+#   adguard-hetzner:tailnetDnsName: ts.net
+#   adguard-hetzner:cloudflareZoneId: <zone-id>   # optional
+#   adguard-hetzner:tailscaleAuthKey: <secret>     # required, use --secret
+#   cloudflare:apiToken: <secret>                  # optional, for DNS; use --secret
