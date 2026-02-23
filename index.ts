@@ -1,6 +1,8 @@
+import * as bcrypt from "bcryptjs";
 import * as pulumi from "@pulumi/pulumi";
 import * as hcloud from "@pulumi/hcloud";
 import * as cloudflare from "@pulumi/cloudflare";
+import * as random from "@pulumi/random";
 import * as tls from "@pulumi/tls";
 
 const config = new pulumi.Config();
@@ -79,14 +81,23 @@ const firewall = new hcloud.Firewall("adguard-firewall", {
   rules: firewallRules,
 });
 
+// Generate random admin password (exported as secret for first login)
+const adminPassword = new random.RandomPassword("adguard-admin-password", {
+  length: 24,
+  special: true,
+  overrideSpecial: "!@#$%&*",
+});
+const passwordHash = adminPassword.result.apply((p) => bcrypt.hashSync(p, 10));
+
 // AdGuard Home bootstrap config (security-hardened per https://adguard-dns.io/kb/adguard-home/running-securely/)
-const adguardBootstrapConfig = `schema_version: 33
+// Password hash is injected at deploy time - no plain text in repo
+const adguardBootstrapConfigTemplate = (pwdHash: string) => `schema_version: 33
 bind_host: 0.0.0.0
 bind_port: 80
 beta_bind_port: 0
 users:
   - name: admin
-    password: $2y$10$U3.Rf9Ee5F78MvBiWT59Me55XaptVyblShUKqLgPLrjv.eatcUIYO
+    password: ${pwdHash}
 auth_attempts: 5
 block_auth_min: 15
 language: en
@@ -193,7 +204,8 @@ filters:
     id: 9
 `;
 
-const userData = pulumi.all([tailscaleAuthKey, dohHostname]).apply(([tsAuthKey, dohHost]) => {
+const userData = pulumi.all([tailscaleAuthKey, dohHostname, passwordHash]).apply(([tsAuthKey, dohHost, pwdHash]) => {
+  const adguardBootstrapConfig = adguardBootstrapConfigTemplate(pwdHash);
   return `#!/bin/bash
 set -e
 
@@ -309,3 +321,4 @@ export const privateKey = sshKey.privateKeyOpenssh;
 export const tailscaleHostname = server.name;
 export const webUiUrl = pulumi.interpolate`https://${server.name}.${tailnetDnsName}`;
 export const dohUrl = pulumi.interpolate`https://${dohHostname}/dns-query`;
+export const adguardAdminPassword = pulumi.secret(adminPassword.result);
