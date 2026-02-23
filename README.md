@@ -207,11 +207,12 @@ This deployment pre-configures AdGuard Home with security-hardened settings and 
 - **Bootstrap**: Cloudflare (1.1.1.1), Quad9 (9.9.9.9)
 - **Rate limit**: 20 queries/second
 - **DNSSEC**: Enabled
-- **Plain DNS (port 53)**: Disabled
+- **Parallel requests**: Enabled (upstream_mode: parallel)
+- **Plain DNS (port 53)**: Localhost only
 
 **Security:**
 - Auth lockout: 5 failed attempts, 15-minute block
-- Safe Browsing filter: Enabled
+- Safe Browsing (AdGuard browsing security): Enabled
 - Trusted proxies: Caddy, Tailscale, private ranges
 - Refuse ANY queries (mitigates amplification)
 
@@ -535,6 +536,10 @@ docker logs adguardhome
 # Verify permissions
 ls -la /opt/adguardhome/work/
 ```
+
+### AdGuard "HTTPS port" Empty
+
+This is intentional. Caddy terminates TLS and proxies DoH to AdGuard over HTTP. AdGuard's `port_https: 0` and `allow_unencrypted_doh: true` allow this. Do not enable AdGuard's HTTPS—it would conflict with Caddy.
 
 ### SSL Certificate Issues
 
