@@ -4,21 +4,24 @@ on:
   pull_request:
     branches:
       - main
+  merge_group:
 
 # Explicit permissions - principle of least privilege
 permissions:
   contents: read
   id-token: write
   pull-requests: write
+  statuses: write
 
 jobs:
   preview:
-    name: Preview
+    name: Pulumi Preview
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
       pull-requests: write
+      statuses: write
     steps:
       - name: Checkout code
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1

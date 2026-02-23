@@ -96,7 +96,7 @@ const passwordHash = adminPassword.result.apply((p) => bcrypt.hashSync(p, 10));
 // - DNS: Quad9 upstream, Cloudflare/AdGuard/Mullvad fallback, DNSSEC enabled
 // - Security: rate limit 20/s, refuse ANY, auth lockout 5 attempts
 // - Blocklists: 9 curated lists (ads, malware, YouTube, etc.)
-// - Plain DNS disabled; trusted proxies for Caddy/Tailscale
+// - Plain DNS localhost only (required when no encrypted port; Caddy handles DoH)
 const adguardBootstrapConfigTemplate = (pwdHash: string) => `schema_version: 33
 bind_host: 0.0.0.0
 bind_port: 80
@@ -149,7 +149,7 @@ dns:
     enabled: false
     use_custom: false
     custom_ip: ""
-  serve_plain_dns: false
+  serve_plain_dns: true
   trusted_proxies:
     - 127.0.0.0/8
     - ::1/128

@@ -85,7 +85,7 @@ The checklist below highlights items that require **your action** to fully secur
 
 - [ ] Create branch protection rule for `main` branch
 - [ ] Require **pull request reviews** before merging (min. 1 reviewer)
-- [ ] Require **status checks** to pass before merging
+- [ ] Require **status checks** to pass before merging (require **Pulumi Preview**; see [Branch Protection](BRANCH_PROTECTION.md))
 - [ ] Require branches to be **up to date** before merging
 - [ ] Require **signed commits** (optional but recommended)
 - [ ] Include administrators in branch protection
