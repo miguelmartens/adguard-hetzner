@@ -45,29 +45,41 @@ cd adguard-hetzner
 npm install
 ```
 
-### 2. Configure Pulumi Stack
+### 2. Configure Pulumi ESC (Secrets Management)
 
-Create or select a stack:
+Create a new ESC environment for secrets:
 
 ```bash
-pulumi login
-pulumi stack init dev   # or: pulumi stack select dev
+pulumi env init <your-org>/adguard-secrets
 ```
 
-Set required configuration (secrets stored in Pulumi config, not GitHub):
+Edit the environment and add your secrets:
 
-```bash
-# Required - Hetzner (provider auth)
-pulumi config set --secret hcloud:token <token>   # From https://console.hetzner.cloud/
+```yaml
+values:
+  tailscaleAuthKey:
+    fn::secret: "tskey-auth-xxxxx"
+  tailnetDnsName: "tailxxxxx.ts.net"
+  domain: "example.com"
+  hcloudToken:
+    fn::secret: "your-hetzner-api-token"
+  pulumiConfig:
+    adguard-hetzner:tailscaleAuthKey: ${tailscaleAuthKey}
+    adguard-hetzner:tailnetDnsName: ${tailnetDnsName}
+    adguard-hetzner:domain: ${domain}
+    hcloud:token: ${hcloudToken}
+```
 
-# Required - Application
-pulumi config set domain example.com              # Base domain (DoH at dns.example.com)
-pulumi config set tailnetDnsName ts.net           # Your Tailscale MagicDNS domain (e.g. tailxxxxx.ts.net)
-pulumi config set --secret tailscaleAuthKey <key> # From https://login.tailscale.com/admin/settings/keys
+**Optional – Cloudflare DNS** (add to ESC if you want automatic A record):
 
-# Optional - Cloudflare DNS (creates A record automatically)
-pulumi config set cloudflareZoneId <zone-id>
-pulumi config set --secret cloudflare:apiToken <token>
+```yaml
+values:
+  cloudflareZoneId: "<zone-id>"
+  cloudflareApiToken:
+    fn::secret: "your-cloudflare-api-token"
+  pulumiConfig:
+    adguard-hetzner:cloudflareZoneId: ${cloudflareZoneId}
+    cloudflare:apiToken: ${cloudflareApiToken}
 ```
 
 **Where to get these:**
@@ -75,10 +87,46 @@ pulumi config set --secret cloudflare:apiToken <token>
 - **Hetzner Cloud Token**: [Console](https://console.hetzner.cloud/) → Project → Security → API Tokens
 - **Tailscale Auth Key**: [Admin Console](https://login.tailscale.com/admin/settings/keys) → Settings → Keys (enable "Reusable")
 - **Tailnet DNS Name**: [Admin Console](https://login.tailscale.com/admin/dns) → DNS → Look for `tailxxxxx.ts.net`
+- **Domain**: Your base domain (DoH will be at `dns.<domain>`)
 
 **Important**: Enable HTTPS in your [Tailscale admin console](https://login.tailscale.com/admin/dns) (DNS settings → HTTPS Certificates → Enable)
 
-### 3. Deploy
+### 3. Link ESC Environment
+
+Create or update `Pulumi.dev.yaml`:
+
+```yaml
+environment:
+  - <your-org>/adguard-secrets
+config:
+  adguard-hetzner:serverType: cx23
+  adguard-hetzner:location: fsn1
+```
+
+### 4. Initialize Pulumi Stack
+
+```bash
+# Login to Pulumi Cloud
+pulumi login
+
+# Create a new stack (or select existing)
+pulumi stack init dev
+
+# Optional: Configure custom settings (or use Pulumi.dev.yaml)
+pulumi config set serverType cx23   # Default: cx23 (2 vCPU, 4GB)
+pulumi config set location fsn1     # Default: fsn1 (Falkenstein, Germany)
+```
+
+*If not using ESC*, set config manually:
+
+```bash
+pulumi config set --secret hcloud:token <token>
+pulumi config set domain example.com
+pulumi config set tailnetDnsName tailxxxxx.ts.net
+pulumi config set --secret tailscaleAuthKey <key>
+```
+
+### 5. Deploy
 
 ```bash
 # Preview changes
@@ -90,7 +138,25 @@ pulumi up
 
 **Wait 2–3 minutes** after deployment for cloud-init to complete the AdGuard Home installation.
 
-### 4. Post-Deploy
+### 6. Get Access URL and Admin Password
+
+```bash
+# Admin UI (Tailscale only) – open in browser
+pulumi stack output webUiUrl
+
+# Initial admin password (change on first login)
+pulumi stack output adguardAdminPassword --show-secrets
+
+# DoH endpoint for clients
+pulumi stack output dohUrl
+
+# Server IP
+pulumi stack output ipv4Address
+```
+
+Copy the web UI URL and admin password. Log in and change the password immediately.
+
+### 7. Post-Deploy
 
 1. **Change admin password** – Access the web UI via `https://<hostname>.<tailnet>.ts.net` (Tailscale) and go to Settings → Profile.
 
@@ -101,12 +167,14 @@ pulumi up
 
 3. **Configure devices** – Use `https://dns.example.com/dns-query` as the DoH server on your devices.
 
-### 5. Get Access URLs
+### 8. Verify Installation
 
 ```bash
-pulumi stack output webUiUrl   # Admin UI (Tailscale only)
-pulumi stack output dohUrl     # DoH endpoint for clients
-pulumi stack output ipv4Address
+# Check stack outputs
+pulumi stack output
+
+# Test DoH from your machine
+curl -H "Accept: application/dns-json" "$(pulumi stack output dohUrl)?name=example.com&type=A"
 ```
 
 ## Understanding AdGuard Home Architecture
