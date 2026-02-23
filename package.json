@@ -1,17 +1,19 @@
 {
   "name": "adguard-hetzner",
   "main": "index.ts",
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/node": "^18",
-    "typescript": "^5.0.0"
+  "engines": {
+    "node": ">=22"
   },
   "dependencies": {
-    "@pulumi/cloudflare": "^5.0.0",
-    "@pulumi/hcloud": "^1.20.0",
-    "@pulumi/pulumi": "^3.113.0",
-    "@pulumi/random": "^4.16.0",
+    "@pulumi/cloudflare": "^6.0.0",
+    "@pulumi/hcloud": "^1.32.0",
+    "@pulumi/pulumi": "^3.223.0",
+    "@pulumi/random": "^4.19.0",
     "@pulumi/tls": "^5.3.0",
-    "bcryptjs": "^2.4.3"
+    "bcryptjs": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5.9.0"
   }
 }
