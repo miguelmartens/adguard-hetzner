@@ -344,9 +344,10 @@ Go to your GitHub repository → **Settings** → **Secrets and variables** → 
 ### Workflows
 
 - **Pull Request** (`.github/workflows/pull_request.yml`)
-  - Triggers: PR to `main` branch
+  - Triggers: PR to `main`, merge queue
   - Action: `pulumi preview`
   - Comments preview output on PR
+  - **Required before merge**: Configure branch protection to require this check (see [Branch Protection](docs/BRANCH_PROTECTION.md))
 
 - **Push** (`.github/workflows/push.yml`)
   - Triggers: Push to `main` branch
@@ -568,6 +569,7 @@ This will:
 
 ## Documentation
 
+- [`docs/BRANCH_PROTECTION.md`](docs/BRANCH_PROTECTION.md) - Require Pulumi preview to pass before merge
 - [`docs/SECURITY_CHECKLIST.md`](docs/SECURITY_CHECKLIST.md) - Comprehensive security checklist
 - [`docs/RENOVATE_SETUP.md`](docs/RENOVATE_SETUP.md) - Renovate configuration guide
 
