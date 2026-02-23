@@ -23,7 +23,7 @@ Before getting started, ensure you have:
 - [Hetzner Cloud account](https://www.hetzner.com/cloud)
 - [Tailscale account](https://tailscale.com/) with HTTPS enabled
 - [Node.js 22+](https://nodejs.org/) installed
-- Domain for DoH (e.g. `example.com` → DoH at `dns.example.com`)
+- Domain for DoH (base domain only; `dns.` prefix added automatically, e.g. `example.com` → DoH at `dns.example.com`)
 - Cloudflare account (optional, for automatic A record)
 
 ## Cost Estimate
@@ -60,7 +60,7 @@ values:
   tailscaleAuthKey:
     fn::secret: "tskey-auth-xxxxx"
   tailnetDnsName: "tailxxxxx.ts.net"
-  domain: "example.com"
+  domain: "example.com"   # Base domain only; DoH hostname is dns.<domain> (e.g. dns.example.com)
   hcloudToken:
     fn::secret: "your-hetzner-api-token"
   pulumiConfig:
@@ -87,7 +87,9 @@ values:
 - **Hetzner Cloud Token**: [Console](https://console.hetzner.cloud/) → Project → Security → API Tokens
 - **Tailscale Auth Key**: [Admin Console](https://login.tailscale.com/admin/settings/keys) → Settings → Keys (enable "Reusable")
 - **Tailnet DNS Name**: [Admin Console](https://login.tailscale.com/admin/dns) → DNS → Look for `tailxxxxx.ts.net`
-- **Domain**: Your base domain (DoH will be at `dns.<domain>`)
+- **Domain**: Your base domain only (e.g. `example.com`). The `dns.` prefix is added automatically — DoH will be at `dns.<domain>` (e.g. `dns.example.com`).
+- **Cloudflare Zone ID** (optional): [Dashboard](https://dash.cloudflare.com/) → Select domain → Overview → Zone ID (right sidebar)
+- **Cloudflare API Token** (optional): [Dashboard](https://dash.cloudflare.com/profile/api-tokens) → Create Token → Edit zone DNS template
 
 **Important**: Enable HTTPS in your [Tailscale admin console](https://login.tailscale.com/admin/dns) (DNS settings → HTTPS Certificates → Enable)
 
@@ -121,7 +123,7 @@ pulumi config set location fsn1     # Default: fsn1 (Falkenstein, Germany)
 
 ```bash
 pulumi config set --secret hcloud:token <token>
-pulumi config set domain example.com
+pulumi config set domain example.com   # Base domain; DoH = dns.example.com
 pulumi config set tailnetDnsName tailxxxxx.ts.net
 pulumi config set --secret tailscaleAuthKey <key>
 ```
@@ -410,7 +412,7 @@ pulumi config set location ash   # Ashburn, USA
 | Key | Required | Description |
 |-----|----------|-------------|
 | `hcloud:token` | Yes (secret) | Hetzner Cloud API token |
-| `domain` | Yes | Base domain (DoH at `dns.<domain>`) |
+| `domain` | Yes | Base domain only (e.g. `example.com`). The `dns.` prefix is added automatically — DoH at `dns.<domain>`. |
 | `tailnetDnsName` | Yes | Tailscale MagicDNS (e.g. `ts.net`) |
 | `tailscaleAuthKey` | Yes (secret) | Tailscale auth key |
 | `serverType` | No | Hetzner server type (default: `cx23`) |
