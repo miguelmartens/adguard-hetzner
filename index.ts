@@ -97,6 +97,7 @@ const passwordHash = adminPassword.result.apply((p) => bcrypt.hashSync(p, 10));
 // - Security: rate limit 20/s, refuse ANY, auth lockout 5 attempts
 // - Blocklists: 9 curated lists (ads, malware, YouTube, etc.)
 // - Plain DNS localhost only (required when no encrypted port; Caddy handles DoH)
+// - port_https: 0 by design (Caddy terminates TLS for DoH; AdGuard receives HTTP)
 const adguardBootstrapConfigTemplate = (pwdHash: string) => `schema_version: 33
 http:
   address: 0.0.0.0:80
@@ -136,7 +137,7 @@ dns:
     - https://dns.cloudflare.com/dns-query
     - https://unfiltered.adguard-dns.com/dns-query
     - https://dns.mullvad.net/dns-query
-  all_servers: true
+  upstream_mode: parallel
   bootstrap_dns:
     - 1.1.1.1
     - 2606:4700:4700::1111
@@ -157,12 +158,13 @@ dns:
     - 192.168.0.0/16
     - 100.64.0.0/10
   cache_size: 4194304
-  filtering_enabled: true
-  filters_update_interval: 24
-  parental_enabled: false
-  safesearch_enabled: false
-  safebrowsing_enabled: true
   enable_dnssec: true
+filtering:
+  protection_enabled: true
+  filtering_enabled: true
+  parental_enabled: false
+  safebrowsing_enabled: true
+  filters_update_interval: 24
 tls:
   enabled: false
   allow_unencrypted_doh: true
