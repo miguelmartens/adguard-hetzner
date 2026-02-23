@@ -11,7 +11,7 @@ const config = new pulumi.Config();
 const serverType = config.get("serverType") ?? "cx23";
 const location = config.get("location") ?? "fsn1";
 
-// Domain: base domain (e.g. example.com). DoH will be at dns.<domain>
+// Domain: base domain only (e.g. example.com). The dns. prefix is added automatically — DoH at dns.<domain>
 const domain = config.require("domain");
 const dohHostname = `dns.${domain}`;
 
