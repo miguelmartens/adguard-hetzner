@@ -255,10 +255,10 @@ systemctl enable caddy
 
 # Create AdGuard Home directories and bootstrap config
 mkdir -p /opt/adguardhome/work /opt/adguardhome/conf
-cat > /opt/adguardhome/work/AdGuardHome.yaml << 'AGHEOF'
+cat > /opt/adguardhome/conf/AdGuardHome.yaml << 'AGHEOF'
 ${adguardBootstrapConfig}
 AGHEOF
-chmod 644 /opt/adguardhome/work/AdGuardHome.yaml
+chmod 644 /opt/adguardhome/conf/AdGuardHome.yaml
 
 # Run AdGuard Home via Docker (HTTP on 8080 only; plain DNS disabled)
 docker run -d \\
@@ -309,13 +309,13 @@ const server = new hcloud.Server("adguard-server", {
 });
 
 // Cloudflare DNS record (optional - only if cloudflareZoneId is set)
-let dnsRecord: cloudflare.Record | undefined;
+let dnsRecord: cloudflare.DnsRecord | undefined;
 if (cloudflareZoneId) {
-  dnsRecord = new cloudflare.Record("adguard-dns-record", {
+  dnsRecord = new cloudflare.DnsRecord("adguard-dns-record", {
     zoneId: cloudflareZoneId,
     name: "dns",
     type: "A",
-    value: server.ipv4Address,
+    content: server.ipv4Address,
     ttl: 300,
     proxied: false, // DNS-over-HTTPS requires direct connection; set true for DDoS proxy if desired
     comment: "Managed by Pulumi (adguard-hetzner)",
