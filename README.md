@@ -40,7 +40,7 @@ Before getting started, ensure you have:
 ### 1. Clone and Install Dependencies
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/miguelmartens/adguard-hetzner.git
 cd adguard-hetzner
 npm install
 ```
