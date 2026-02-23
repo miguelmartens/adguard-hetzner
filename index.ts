@@ -318,6 +318,7 @@ if (cloudflareZoneId) {
     value: server.ipv4Address,
     ttl: 300,
     proxied: false, // DNS-over-HTTPS requires direct connection; set true for DDoS proxy if desired
+    comment: "Managed by Pulumi (adguard-hetzner)",
   });
 }
 
