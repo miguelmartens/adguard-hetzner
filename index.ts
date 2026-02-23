@@ -98,9 +98,8 @@ const passwordHash = adminPassword.result.apply((p) => bcrypt.hashSync(p, 10));
 // - Blocklists: 9 curated lists (ads, malware, YouTube, etc.)
 // - Plain DNS localhost only (required when no encrypted port; Caddy handles DoH)
 const adguardBootstrapConfigTemplate = (pwdHash: string) => `schema_version: 33
-bind_host: 0.0.0.0
-bind_port: 80
-beta_bind_port: 0
+http:
+  address: 0.0.0.0:80
 users:
   - name: admin
     password: ${pwdHash}
