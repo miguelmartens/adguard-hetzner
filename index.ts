@@ -91,6 +91,12 @@ const passwordHash = adminPassword.result.apply((p) => bcrypt.hashSync(p, 10));
 
 // AdGuard Home bootstrap config (security-hardened per https://adguard-dns.io/kb/adguard-home/running-securely/)
 // Password hash is injected at deploy time - no plain text in repo
+//
+// Default configuration (see README "Default AdGuard Home Configuration"):
+// - DNS: Quad9 upstream, Cloudflare/AdGuard/Mullvad fallback, DNSSEC enabled
+// - Security: rate limit 20/s, refuse ANY, auth lockout 5 attempts
+// - Blocklists: 9 curated lists (ads, malware, YouTube, etc.)
+// - Plain DNS disabled; trusted proxies for Caddy/Tailscale
 const adguardBootstrapConfigTemplate = (pwdHash: string) => `schema_version: 33
 bind_host: 0.0.0.0
 bind_port: 80

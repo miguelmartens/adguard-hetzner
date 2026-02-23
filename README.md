@@ -127,6 +127,40 @@ AdGuard Home acts as a network-wide DNS filter, blocking ads and trackers at the
 - **Admin UI (Private)**: Accessible only via Tailscale at `https://<hostname>.<tailnet>.ts.net`. No public exposure.
 - **Trusted Proxies**: Caddy and Tailscale subnets configured for correct client IP logging in AdGuard.
 
+### Default Configuration
+
+This deployment pre-configures AdGuard Home with security-hardened settings and curated blocklists. All settings are defined in `index.ts` and applied at deploy time.
+
+**DNS Settings:**
+- **Upstream**: Quad9 (DoH)
+- **Fallback**: Cloudflare, AdGuard (unfiltered), Mullvad
+- **Bootstrap**: Cloudflare (1.1.1.1), Quad9 (9.9.9.9)
+- **Rate limit**: 20 queries/second
+- **DNSSEC**: Enabled
+- **Plain DNS (port 53)**: Disabled
+
+**Security:**
+- Auth lockout: 5 failed attempts, 15-minute block
+- Safe Browsing filter: Enabled
+- Trusted proxies: Caddy, Tailscale, private ranges
+- Refuse ANY queries (mitigates amplification)
+
+**Blocklists (9 enabled):**
+
+| # | Blocklist | Purpose |
+|---|-----------|---------|
+| 1 | AdGuard DNS filter | General ads & trackers |
+| 2 | AdAway Default Blocklist | Mobile ads |
+| 3 | Dandelion Sprout's Anti-Malware | Malware domains |
+| 4 | HaGeZi's Threat Intelligence | Threat intel feeds |
+| 5 | HaGeZi's Pro++ Blocklist | Aggressive blocking |
+| 6 | GoodbyeAds YouTube Adblock | YouTube ads |
+| 7 | Steven Black's List | Unified hosts |
+| 8 | Malicious URL Blocklist (URLHaus) | Malware URLs |
+| 9 | AdGuard DNS filter (HostlistsRegistry) | Additional coverage |
+
+You can add, remove, or customize blocklists after deployment via the AdGuard web UI (Filters → DNS blocklists). Changes persist in `/opt/adguardhome/work/`.
+
 ### Communication Flow
 
 ```
