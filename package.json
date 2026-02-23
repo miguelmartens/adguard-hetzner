@@ -1,22 +1,17 @@
 {
   "name": "adguard-hetzner",
-  "version": "1.0.0",
-  "description": "AdGuard Home on Hetzner VPS with Pulumi",
   "main": "index.ts",
-  "scripts": {
-    "build": "tsc",
-    "deploy": "pulumi up",
-    "preview": "pulumi preview",
-    "destroy": "pulumi destroy"
-  },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^18",
     "typescript": "^5.0.0"
   },
   "dependencies": {
     "@pulumi/cloudflare": "^5.0.0",
-    "@pulumi/hcloud": "^1.0.0",
-    "@pulumi/pulumi": "^3.0.0",
-    "@pulumi/tls": "^5.0.0"
+    "@pulumi/hcloud": "^1.20.0",
+    "@pulumi/pulumi": "^3.113.0",
+    "@pulumi/random": "^4.16.0",
+    "@pulumi/tls": "^5.3.0",
+    "bcryptjs": "^2.4.3"
   }
 }
