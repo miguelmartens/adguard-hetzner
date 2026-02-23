@@ -1,0 +1,30 @@
+# Copy to Pulumi.dev.yaml or Pulumi.prod.yaml and fill in values.
+#
+# Option A: Pulumi ESC (recommended - secrets stay out of files)
+#   pulumi env init <your-org>/adguard-secrets
+#   Add to ESC environment:
+#     values:
+#       tailscaleAuthKey: { fn::secret: "tskey-auth-xxxxx" }
+#       hcloudToken: { fn::secret: "your-hetzner-api-token" }
+#       tailnetDnsName: "tailxxxxx.ts.net"
+#       domain: "example.com"
+#     pulumiConfig:
+#       adguard-hetzner:tailscaleAuthKey: ${tailscaleAuthKey}
+#       adguard-hetzner:tailnetDnsName: ${tailnetDnsName}
+#       adguard-hetzner:domain: ${domain}
+#       hcloud:token: ${hcloudToken}
+#
+# Option B: Pulumi config (secrets via --secret)
+#   pulumi config set --secret hcloud:token <token>
+#   pulumi config set --secret tailscaleAuthKey <key>
+#   pulumi config set domain example.com
+#   pulumi config set tailnetDnsName ts.net
+#
+# environment:
+#   - <your-org>/adguard-secrets   # Only if using ESC
+# config:
+#   adguard-hetzner:serverType: cx23
+#   adguard-hetzner:location: fsn1
+#   adguard-hetzner:domain: example.com
+#   adguard-hetzner:tailnetDnsName: ts.net
+#   adguard-hetzner:cloudflareZoneId: <zone-id>   # optional

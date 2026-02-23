@@ -1,0 +1,5 @@
+environment:
+  - adguard-secrets
+config:
+  adguard-hetzner:serverType: cx23
+  adguard-hetzner:location: fsn1

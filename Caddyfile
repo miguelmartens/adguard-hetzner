@@ -1,0 +1,9 @@
+# Caddyfile for AdGuard Home DoH reverse proxy
+# The domain is injected by Pulumi cloud-init. This file is a reference.
+# Caddy obtains Let's Encrypt certificates automatically via HTTP-01.
+#
+# Example:
+# dns.example.com {
+#     reverse_proxy 127.0.0.1:8080
+#     encode gzip
+# }

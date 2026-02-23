@@ -1,0 +1,103 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":separateMajorReleases"
+  ],
+  "timezone": "UTC",
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies"],
+  "assignees": [],
+  "reviewers": [],
+  "prConcurrentLimit": 5,
+  "prCreation": "not-pending",
+  "prHourlyLimit": 0,
+  "rebaseWhen": "behind-base-branch",
+  "semanticCommits": "enabled",
+  "commitMessagePrefix": "chore(deps):",
+  "commitMessageAction": "update",
+  "commitMessageExtra": "to {{#if isPinDigest}}{{{newDigestShort}}}{{else}}{{#if isMajor}}{{prettyNewMajor}}{{else}}{{#if isSingleVersion}}{{prettyNewVersion}}{{else}}{{#if newValue}}{{{newValue}}}{{else}}{{{newDigestShort}}}{{/if}}{{/if}}{{/if}}{{/if}}",
+  "commitMessageTopic": "{{depName}}",
+  "rangeStrategy": "bump",
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"],
+    "assignees": [],
+    "reviewers": []
+  },
+  "packageRules": [
+    {
+      "description": "Pin GitHub Action digests",
+      "matchManagers": ["github-actions"],
+      "pinDigests": true,
+      "automerge": false,
+      "groupName": "GitHub Actions"
+    },
+    {
+      "description": "Group all non-major npm dependencies",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "npm dependencies (non-major)",
+      "automerge": false
+    },
+    {
+      "description": "Separate major npm updates",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["major"],
+      "groupName": null,
+      "automerge": false,
+      "labels": ["dependencies", "major-update"]
+    },
+    {
+      "description": "Security updates - high priority",
+      "matchDatasources": ["npm"],
+      "matchUpdateTypes": ["patch"],
+      "labels": ["security", "automerge"],
+      "prPriority": 10,
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Pulumi packages",
+      "matchPackagePatterns": ["^@pulumi/"],
+      "groupName": "Pulumi packages",
+      "automerge": false,
+      "schedule": ["before 6am on monday"]
+    },
+    {
+      "description": "TypeScript and type definitions",
+      "matchPackagePatterns": ["^@types/", "typescript"],
+      "groupName": "TypeScript and types",
+      "automerge": false
+    },
+    {
+      "description": "Lock file maintenance",
+      "matchUpdateTypes": ["lockFileMaintenance"],
+      "schedule": ["before 6am on monday"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    }
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  },
+  "npm": {
+    "minimumReleaseAge": "3 days"
+  },
+  "stabilityDays": 3,
+  "ignoreDeps": [],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**"
+  ]
+}

@@ -1,0 +1,10 @@
+name: adguard-hetzner
+description: AdGuard Home on Hetzner VPS with Tailscale, Caddy, and Cloudflare
+runtime:
+  name: nodejs
+  options:
+    packagemanager: npm
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: typescript
