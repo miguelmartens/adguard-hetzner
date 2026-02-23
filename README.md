@@ -70,7 +70,7 @@ values:
     hcloud:token: ${hcloudToken}
 ```
 
-**Optional – Cloudflare DNS** (add to ESC if you want automatic A record):
+**Optional – Cloudflare DNS** (add to ESC if you want automatic A record). The created A record includes the comment `Managed by Pulumi (adguard-hetzner)` for identification:
 
 ```yaml
 values:
