@@ -631,9 +631,29 @@ This is intentional. Caddy terminates TLS and proxies DoH to AdGuard over HTTP. 
 
 ### SSL Certificate Issues
 
+**General checks:**
 - Ensure port 80 is open for ACME HTTP-01
 - Verify `dns.<domain>` resolves to server IP before deploy
 - Check Caddy logs: `journalctl -u caddy -f`
+
+**Let's Encrypt rate limit (HTTP 429):**
+
+If DoH fails with certificate errors and Caddy logs show:
+```
+HTTP 429 urn:ietf:params:acme:error:rateLimited - too many certificates (5) 
+already issued for this exact set of identifiers in the last 168h0m0s
+```
+
+Let's Encrypt limits **5 certificates per exact domain set per 7 days**. This happens when:
+- The server was recreated (`pulumi destroy` + `pulumi up`) and Caddy lost its ACME state (stored in `/var/lib/caddy`)
+- Caddy repeatedly tried to obtain a new certificate instead of reusing an existing one
+
+**What to do:**
+1. **Wait** – The limit resets after the time shown in the error (e.g. `retry after 2026-02-25 18:42:27 UTC`). Caddy retries automatically; no action needed.
+2. **Verify** – `journalctl -u caddy -f` to confirm retries continue.
+3. **Avoid** – After `pulumi destroy`, wait before redeploying, or back up `/var/lib/caddy` before destroy and restore it on the new server to reuse the certificate.
+
+**ACME state lost:** If `/var/lib/caddy/.local/share/caddy/acme/` is missing or empty, Caddy will always request a new certificate. Server recreation (e.g. `pulumi destroy`), disk replacement, or OS reinstall clears this. See [Let's Encrypt rate limits](https://letsencrypt.org/docs/rate-limits/#new-certificates-per-exact-set-of-identifiers).
 
 ### SSH Access
 
@@ -655,6 +675,8 @@ To destroy all resources:
 ```bash
 pulumi destroy
 ```
+
+**Note:** Destroying recreates the server and clears Caddy's ACME state (`/var/lib/caddy`). If you redeploy immediately, Caddy will request a new Let's Encrypt certificate. Repeated destroy/redeploy cycles can hit [Let's Encrypt rate limits](https://letsencrypt.org/docs/rate-limits/) (5 certs per domain per 7 days). See [SSL Certificate Issues](#ssl-certificate-issues) if DoH fails after redeploy.
 
 This will:
 - Delete the Hetzner server

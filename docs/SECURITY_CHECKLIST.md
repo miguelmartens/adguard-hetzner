@@ -246,6 +246,8 @@ See the `renovate.json` file in the repository root for full configuration.
 - [ ] Monitor **certificate expiration** (Caddy auto-renews)
 - [ ] Consider **HSTS** headers (Caddy default)
 
+**Let's Encrypt rate limit:** 5 certs per domain per 7 days. Server recreation (`pulumi destroy` + redeploy) clears `/var/lib/caddy` and forces a new cert request. Avoid frequent destroy/redeploy; see [README SSL Certificate Issues](../README.md#ssl-certificate-issues).
+
 ---
 
 ## Secrets Management
