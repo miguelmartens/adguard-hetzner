@@ -103,6 +103,7 @@ environment:
 config:
   adguard-hetzner:serverType: cx23
   adguard-hetzner:location: fsn1
+  adguard-hetzner:ipv6Only: false   # Set true for IPv6-only (cheaper, AAAA record)
 ```
 
 ### 4. Initialize Pulumi Stack
@@ -117,6 +118,7 @@ pulumi stack init dev
 # Optional: Configure custom settings (or use Pulumi.dev.yaml)
 pulumi config set serverType cx23   # Default: cx23 (2 vCPU, 4GB)
 pulumi config set location fsn1     # Default: fsn1 (Falkenstein, Germany)
+pulumi config set ipv6Only false    # Set true for IPv6-only (cheaper, AAAA record)
 ```
 
 *If not using ESC*, set config manually:
@@ -152,8 +154,9 @@ pulumi stack output adguardAdminPassword --show-secrets
 # DoH endpoint for clients
 pulumi stack output dohUrl
 
-# Server IP
+# Server IP (use ipv6Address when ipv6Only is true)
 pulumi stack output ipv4Address
+pulumi stack output ipv6Address
 ```
 
 Copy the web UI URL and admin password. Log in and change the password immediately.
@@ -215,6 +218,7 @@ This deployment pre-configures AdGuard Home with security-hardened settings and 
 - Safe Browsing (AdGuard browsing security): Enabled
 - Trusted proxies: Caddy, Tailscale, private ranges
 - Refuse ANY queries (mitigates amplification)
+- Client access: allow all by default (see [Client Access Control](#client-access-control) to restrict)
 
 **Blocklists (9 enabled):**
 
@@ -317,6 +321,30 @@ Per [AdGuard's running securely guide](https://adguard-dns.io/kb/adguard-home/ru
 - **Trusted proxies**: Caddy and Tailscale subnets configured for correct client IP logging
 - **Auth lockout**: 5 failed attempts, 15-minute block
 
+### Client Access Control
+
+By default, any client that can reach the DoH endpoint can use your DNS server (`allowed_clients: []` = allow all). For a private or family setup, restrict access:
+
+| Setting | Purpose |
+|---------|---------|
+| **allowed_clients** | If non-empty, only these clients can use DNS. Others are rejected. |
+| **disallowed_clients** | Block specific clients (ignored when `allowed_clients` is set). |
+| **Persistent Clients** | Named clients with per-client settings (blocklists, safe search, etc.). |
+
+**Configure at deploy time** in `index.ts` (bootstrap config):
+
+```yaml
+dns:
+  allowed_clients:
+    - 192.168.1.0/24      # Home LAN
+    - 100.64.0.0/10       # Tailscale
+    - 10.0.0.0/8          # Private
+```
+
+**Configure after deployment** via AdGuard web UI: **Settings → Client settings** → add clients by IP, CIDR, or ClientID.
+
+**Note:** With DoH behind Caddy, AdGuard sees client IPs from `X-Forwarded-For` / `X-Real-IP` (trusted proxies). Ensure your clients' IP ranges are in `trusted_proxies` for correct identification.
+
 ### Recommendations
 
 - ✅ Always use Tailscale for admin access
@@ -409,6 +437,14 @@ pulumi config set location hel1  # Helsinki, Finland
 pulumi config set location ash   # Ashburn, USA
 ```
 
+### IPv6-only
+
+Use IPv6-only to save on Hetzner's IPv4 cost (no separate IPv4 address). Cloudflare will get an AAAA record instead of A. DoH and SSH require IPv6 connectivity.
+
+```bash
+pulumi config set ipv6Only true
+```
+
 ### Configuration Reference
 
 | Key | Required | Description |
@@ -419,7 +455,8 @@ pulumi config set location ash   # Ashburn, USA
 | `tailscaleAuthKey` | Yes (secret) | Tailscale auth key |
 | `serverType` | No | Hetzner server type (default: `cx23`) |
 | `location` | No | Hetzner location (default: `fsn1`) |
-| `cloudflareZoneId` | No | Cloudflare zone ID for A record |
+| `ipv6Only` | No | Use IPv6-only (no IPv4). Creates AAAA record instead of A. Default: `false` |
+| `cloudflareZoneId` | No | Cloudflare zone ID for A/AAAA record |
 | `cloudflare:apiToken` | No (secret) | Cloudflare API token |
 
 ## Useful Commands
@@ -470,13 +507,17 @@ See [AdGuard DoH setup guide](https://adguard-dns.io/kb/adguard-home/getting-sta
 
 ## Manual DNS (without Cloudflare)
 
-If you don't set `cloudflareZoneId`, create the A record manually:
+If you don't set `cloudflareZoneId`, create the record manually:
 
 ```
+# IPv4 (default)
 dns.example.com  A  <VPS_IPV4>
+
+# IPv6-only (when ipv6Only is true)
+dns.example.com  AAAA  <VPS_IPV6>
 ```
 
-Get the IP from `pulumi stack output ipv4Address`.
+Get the IP from `pulumi stack output ipv4Address` or `pulumi stack output ipv6Address`.
 
 ## Upgrading
 
@@ -505,8 +546,9 @@ See [Verify Releases](https://github.com/AdguardTeam/AdguardHome/wiki/Verify-Rel
 # Check Caddy logs
 journalctl -u caddy -f
 
-# Verify DNS A record points to server
+# Verify DNS record points to server (A or AAAA when ipv6Only)
 pulumi stack output ipv4Address
+pulumi stack output ipv6Address
 ```
 
 ### Web UI Unreachable
@@ -554,7 +596,10 @@ This is intentional. Caddy terminates TLS and proxies DoH to AdGuard over HTTP. 
 ssh root@<hostname>.<tailnet>.ts.net
 
 # Via public IP (fallback, use generated key)
+# IPv4:
 ssh -i <(pulumi stack output privateKey --show-secrets) root@$(pulumi stack output ipv4Address)
+# IPv6-only:
+ssh -i <(pulumi stack output privateKey --show-secrets) root@[$(pulumi stack output ipv6Address)]
 ```
 
 ## Cleanup
@@ -569,7 +614,7 @@ This will:
 - Delete the Hetzner server
 - Remove firewall rules
 - Delete SSH keys
-- Remove Cloudflare A record (if configured)
+- Remove Cloudflare A/AAAA record (if configured)
 - Remove Tailscale connection (manually remove from admin console if needed)
 
 ## Documentation

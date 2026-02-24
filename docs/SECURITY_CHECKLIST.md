@@ -217,7 +217,7 @@ See the `renovate.json` file in the repository root for full configuration.
 - [x] **Refuse ANY** queries (amplification protection)
 - [x] **Trusted proxies** for Caddy and Tailscale
 - [x] **DNSSEC** enabled
-- [ ] Consider **allowed_clients** allowlist for DoH (if known clients)
+- [ ] Consider **allowed_clients** allowlist for DoH (if known clients); see [README Client Access Control](../README.md#client-access-control)
 - [ ] Review **blocklists** and filters regularly
 
 ### Web UI Security

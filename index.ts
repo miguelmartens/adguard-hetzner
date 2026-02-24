@@ -10,6 +10,7 @@ const config = new pulumi.Config();
 // Hetzner (cx23 ~€3.62/mo; cpx11 ~€4.35/mo; cax21 ~€9/mo)
 const serverType = config.get("serverType") ?? "cx23";
 const location = config.get("location") ?? "fsn1";
+const ipv6Only = config.getBoolean("ipv6Only") ?? false;
 
 // Domain: base domain only (e.g. example.com). The dns. prefix is added automatically — DoH at dns.<domain>
 const domain = config.require("domain");
@@ -307,6 +308,9 @@ const server = new hcloud.Server("adguard-server", {
   labels: {
     purpose: "adguard-home",
   },
+  ...(ipv6Only && {
+    publicNets: [{ ipv4Enabled: false, ipv6Enabled: true }],
+  }),
 });
 
 // Cloudflare DNS record (optional - only if cloudflareZoneId is set)
@@ -315,8 +319,8 @@ if (cloudflareZoneId) {
   dnsRecord = new cloudflare.DnsRecord("adguard-dns-record", {
     zoneId: cloudflareZoneId,
     name: "dns",
-    type: "A",
-    content: server.ipv4Address,
+    type: ipv6Only ? "AAAA" : "A",
+    content: ipv6Only ? server.ipv6Address : server.ipv4Address,
     ttl: 300,
     proxied: false, // DNS-over-HTTPS requires direct connection; set true for DDoS proxy if desired
     comment: "Managed by Pulumi (adguard-hetzner)",
@@ -325,6 +329,8 @@ if (cloudflareZoneId) {
 
 // Exports
 export const ipv4Address = server.ipv4Address;
+export const ipv6Address = server.ipv6Address;
+export const ipv6OnlyMode = ipv6Only;
 export const privateKey = sshKey.privateKeyOpenssh;
 export const tailscaleHostname = server.name;
 export const webUiUrl = pulumi.interpolate`https://${server.name}.${tailnetDnsName}`;
