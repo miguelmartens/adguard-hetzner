@@ -219,13 +219,16 @@ set -e
 
 export DEBIAN_FRONTEND=noninteractive
 
-# System updates
+# System updates and cleanup
 apt-get update
 apt-get upgrade -y
+apt-get autoremove -y
 
-# Install unattended-upgrades for automatic security updates
-apt-get install -y unattended-upgrades apt-listchanges
+# Install unattended-upgrades and fail2ban for automatic security
+apt-get install -y unattended-upgrades apt-listchanges fail2ban
 
+# Unattended-upgrades: security updates only, auto-reboot at 03:00
+CODENAME=\$(lsb_release -cs 2>/dev/null || echo "trixie")
 cat > /etc/apt/apt.conf.d/20auto-upgrades << 'APTEOF'
 APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
@@ -233,19 +236,58 @@ APT::Periodic::Download-Upgradeable-Packages "1";
 APT::Periodic::AutocleanInterval "7";
 APTEOF
 
-cat > /etc/apt/apt.conf.d/50unattended-upgrades-custom << 'APTEOF'
+cat > /etc/apt/apt.conf.d/50unattended-upgrades-custom << APTUNATTENDED
+Unattended-Upgrade::Allowed-Origins {
+    "origin=Debian,codename=\$CODENAME,label=Debian-Security";
+};
 Unattended-Upgrade::Automatic-Reboot "true";
 Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
 Unattended-Upgrade::Automatic-Reboot-Time "03:00";
-APTEOF
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+APTUNATTENDED
 
 systemctl enable unattended-upgrades
 systemctl start unattended-upgrades
+
+# SSH hardening (key-based auth only, reduce attack surface)
+mkdir -p /etc/ssh/sshd_config.d
+cat > /etc/ssh/sshd_config.d/99-hardening.conf << 'SSHEOF'
+PermitRootLogin prohibit-password
+PasswordAuthentication no
+MaxAuthTries 3
+ClientAliveInterval 300
+ClientAliveCountMax 2
+X11Forwarding no
+SSHEOF
+systemctl restart ssh
+
+# fail2ban: protect SSH (conservative: 5 retries, 1h ban)
+cat > /etc/fail2ban/jail.d/sshd.local << 'FAIL2BANEOF'
+[sshd]
+enabled = true
+maxretry = 5
+bantime = 1h
+findtime = 10m
+FAIL2BANEOF
+systemctl enable fail2ban
+systemctl start fail2ban
 
 # Install Docker
 curl -fsSL https://get.docker.com | sh
 systemctl enable docker
 systemctl start docker
+
+# Docker daemon security: log limits, live-restore
+mkdir -p /etc/docker
+cat > /etc/docker/daemon.json << 'DOCKEREOF'
+{
+  "log-driver": "json-file",
+  "log-opts": {"max-size": "10m", "max-file": "3"},
+  "live-restore": true
+}
+DOCKEREOF
+systemctl restart docker
 
 # Install Caddy
 apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl
@@ -263,9 +305,11 @@ AGHEOF
 chmod 644 /opt/adguardhome/conf/AdGuardHome.yaml
 
 # Run AdGuard Home via Docker (HTTP on 8080 only; plain DNS disabled)
+# Security: no-new-privileges prevents privilege escalation inside container
 docker run -d \\
   --name adguardhome \\
   --restart unless-stopped \\
+  --security-opt=no-new-privileges:true \\
   -v /opt/adguardhome/work:/opt/adguardhome/work \\
   -v /opt/adguardhome/conf:/opt/adguardhome/conf \\
   -p 127.0.0.1:8080:80 \\
@@ -301,7 +345,7 @@ echo "DoH endpoint: https://${dohHost}/dns-query"
 const server = new hcloud.Server("adguard-server", {
   serverType: serverType,
   location: location,
-  image: "ubuntu-24.04",
+  image: config.get("image") ?? "debian-13",
   sshKeys: [hcloudSshKey.id],
   firewallIds: [firewall.id.apply((id: string) => Number(id))],
   userData: userData,

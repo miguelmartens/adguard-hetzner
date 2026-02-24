@@ -20,11 +20,14 @@ This project has **implemented many security best practices out of the box**:
 **Infrastructure Security:**
 - ✅ Hetzner Cloud Firewall enabled
 - ✅ Only SSH (22), HTTP (80), HTTPS (443) exposed; plain DNS (53) disabled
-- ✅ Ubuntu automatic security updates configured (`unattended-upgrades`)
-  - Daily security updates applied automatically
-  - Automatic reboot at 3 AM if required
-- ✅ SSH key authentication configured
-- ✅ Docker installed and updated
+- ✅ Debian 13 with automatic security updates (`unattended-upgrades`)
+  - Security updates only (Debian-Security origin)
+  - Daily updates, automatic reboot at 03:00 if needed
+  - Remove unused dependencies and old kernels
+- ✅ SSH hardening: key-only auth, `PermitRootLogin prohibit-password`, `MaxAuthTries 3`
+- ✅ fail2ban: SSH jail (5 retries → 1h ban)
+- ✅ Docker daemon: log rotation, live-restore
+- ✅ AdGuard container: `--security-opt=no-new-privileges`
 - ✅ Tailscale for zero-trust admin access
 
 **Network Security:**
@@ -173,23 +176,28 @@ See the `renovate.json` file in the repository root for full configuration.
 
 ### Server Hardening
 
-- [x] Keep Ubuntu system packages **up to date**
+- [x] Keep Debian system packages **up to date**
 - [x] Configure **automatic security updates** via `unattended-upgrades`
   - [x] Install `unattended-upgrades` package
+  - [x] Security updates only (Debian-Security origin)
   - [x] Enable daily update checks
   - [x] Enable automatic upgrade installation
-  - [x] Configure automatic reboot if needed (3 AM)
+  - [x] Configure automatic reboot if needed (03:00)
+  - [x] Remove unused dependencies and old kernels
   - [ ] Review `/var/log/unattended-upgrades/` logs periodically
-- [ ] Disable **root SSH login**
+- [x] Restrict **root SSH** to key-based only (`PermitRootLogin prohibit-password`)
+- [x] Disable **password authentication** (`PasswordAuthentication no`)
 - [x] Use **SSH key authentication**
-- [ ] Configure **fail2ban** for brute force protection (optional)
-- [ ] Enable **UFW firewall** on server
-- [ ] Minimize installed packages
+- [x] Configure **fail2ban** for SSH (5 retries, 1h ban)
+- [ ] Enable **UFW firewall** on server (Hetzner Cloud Firewall provides network-level protection)
+- [x] Minimize installed packages (`apt autoremove`)
 
 ### Docker Security
 
 - [x] Keep Docker **up to date**
 - [x] Run AdGuard Home via official image
+- [x] **no-new-privileges** on AdGuard container
+- [x] Docker daemon: log rotation (10MB × 3), live-restore
 - [ ] Use **Docker security scanning** for images
 - [ ] Set **resource limits** (CPU, memory)
 - [ ] Regularly prune unused images and containers
@@ -419,6 +427,9 @@ journalctl -u caddy -f
 # SSH authentication attempts
 sudo grep "Failed password" /var/log/auth.log
 
+# fail2ban status
+sudo fail2ban-client status sshd
+
 # Tailscale logs
 journalctl -u tailscaled
 ```
@@ -449,6 +460,7 @@ journalctl -u tailscaled
 | Date | Changes | Author |
 |------|---------|--------|
 | 2025-02-23 | Initial checklist for AdGuard Home on Hetzner | System |
+| 2025-02-24 | Debian 13, SSH hardening, fail2ban, Docker security (no-new-privileges, daemon.json) | System |
 
 ---
 

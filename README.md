@@ -7,6 +7,7 @@ Deploy [AdGuard Home](https://adguard.com/adguard-home/overview.html) to Hetzner
 This project deploys AdGuard Home (network-wide DNS filter) on Hetzner Cloud with:
 
 - **Hetzner Cloud** server (default: cx23 – 2 vCPUs, 4GB RAM)
+- **Debian 13** (Trixie) – sovereign, EU-aligned base OS with unattended-upgrades, SSH hardening, fail2ban
 - **Tailscale** for secure private admin UI access (web UI not exposed publicly)
 - **Caddy** reverse proxy with Let's Encrypt for DNS-over-HTTPS (DoH)
 - **Public DoH** at `dns.<domain>/dns-query` for client devices
@@ -34,6 +35,22 @@ Before getting started, ensure you have:
 | **Total** | | **~$4/month** |
 
 *20TB traffic included. Tailscale and Cloudflare free tiers cover the rest.*
+
+## EU Digital Sovereignty
+
+This stack is designed with **EU digital sovereignty** and data protection in mind:
+
+| Component | Sovereignty / EU alignment |
+|-----------|----------------------------|
+| **Debian 13** | Community-driven, no corporate owner. Widely used in EU public sector. Independent, transparent development. |
+| **Hetzner Cloud** | German company, EU data centers (Falkenstein, Nuremberg, Helsinki). GDPR-compliant. [European Cloud](https://www.hetzner.com/cloud) offering. |
+| **AdGuard Home** | Open-source DNS filter. Self-hosted; your DNS data stays on your server. |
+| **Caddy** | Open-source web server. Apache 2.0 license. |
+| **Tailscale** | Admin access only; no DNS data flows through Tailscale for DoH. |
+
+**Data residency**: Choose Hetzner locations `fsn1` (Falkenstein, Germany), `nbg1` (Nuremberg, Germany), or `hel1` (Helsinki, Finland) to keep data within the EU/EEA.
+
+**Why Debian?** Debian is a fully community-driven project with no commercial backing. It aligns with EU goals for digital sovereignty: independence from non-EU vendors, transparency, and long-term support without vendor lock-in.
 
 ## Quick Start
 
@@ -164,13 +181,14 @@ Copy the web UI URL and admin password. Log in and change the password immediate
 ### 7. Post-Deploy
 
 1. **Change admin password** – Access the web UI via `https://<hostname>.<tailnet>.ts.net` (Tailscale) and go to Settings → Profile.
+2. **Security updates** – Unattended-upgrades runs daily. Security patches apply automatically; reboots occur at 03:00 when needed.
 
-2. **Verify DoH**:
+3. **Verify DoH**:
    ```bash
    curl -H "Accept: application/dns-json" "https://dns.example.com/dns-query?name=example.com&type=A"
    ```
 
-3. **Configure devices** – Use `https://dns.example.com/dns-query` as the DoH server on your devices.
+4. **Configure devices** – Use `https://dns.example.com/dns-query` as the DoH server on your devices.
 
 ### 8. Verify Installation
 
@@ -310,6 +328,20 @@ This deployment uses Tailscale as a zero-trust network layer for the admin UI. H
 - ✅ **End-to-end encryption**: All admin traffic encrypted via WireGuard
 - ✅ **No public admin exposure**: AdGuard admin UI never exposed to the internet
 - ✅ **Automatic HTTPS**: Tailscale provides TLS certificates for MagicDNS
+
+### Host Security (Debian & Docker)
+
+The deployment applies security best practices to the Debian host and Docker:
+
+| Layer | Measure | Description |
+|-------|---------|-------------|
+| **Unattended-upgrades** | Automatic security patches | Security updates only (Debian-Security). Auto-reboot at 03:00 if kernel updates require it. Removes unused dependencies and old kernels. |
+| **SSH hardening** | `sshd_config.d/99-hardening.conf` | Key-based auth only (`PasswordAuthentication no`), `PermitRootLogin prohibit-password`, `MaxAuthTries 3`, `ClientAliveInterval 300`. |
+| **fail2ban** | SSH jail | 5 retries → 1h ban. Protects against brute-force on port 22. |
+| **Docker daemon** | `daemon.json` | Log rotation (10MB × 3 files), `live-restore` so containers survive daemon restarts. |
+| **AdGuard container** | `--security-opt=no-new-privileges` | Prevents privilege escalation inside the container. |
+
+**Unattended-upgrades schedule**: Runs daily. Reboots at 03:00 when needed. Ensure SSH key access works before relying on Tailscale—if Tailscale fails, you need key-based SSH to recover.
 
 ### AdGuard Home Security
 
@@ -455,6 +487,7 @@ pulumi config set ipv6Only true
 | `tailscaleAuthKey` | Yes (secret) | Tailscale auth key |
 | `serverType` | No | Hetzner server type (default: `cx23`) |
 | `location` | No | Hetzner location (default: `fsn1`) |
+| `image` | No | Hetzner server image (default: `debian-13`). Use `debian-12` if Debian 13 is not yet available in your region. |
 | `ipv6Only` | No | Use IPv6-only (no IPv4). Creates AAAA record instead of A. Default: `false` |
 | `cloudflareZoneId` | No | Cloudflare zone ID for A/AAAA record |
 | `cloudflare:apiToken` | No (secret) | Cloudflare API token |
@@ -491,6 +524,19 @@ sudo systemctl restart caddy # Restart Caddy
 tailscale status            # Show Tailscale status
 tailscale ip                # Show Tailscale IP
 sudo tailscale serve status  # Show HTTPS proxy status
+```
+
+### Security (unattended-upgrades, fail2ban)
+
+```bash
+# Unattended-upgrades: last run, pending updates
+grep -E "^(Start|End):" /var/log/unattended-upgrades/unattended-upgrades.log | tail -4
+
+# fail2ban: SSH jail status
+sudo fail2ban-client status sshd
+
+# Pending security updates
+apt list --upgradable 2>/dev/null | grep -i security
 ```
 
 ## Configuring Devices for DoH
