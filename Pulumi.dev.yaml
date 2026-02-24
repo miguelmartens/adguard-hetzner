@@ -3,3 +3,4 @@ environment:
 config:
   adguard-hetzner:serverType: cx23
   adguard-hetzner:location: fsn1
+  adguard-hetzner:ipv6Only: "false"

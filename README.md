@@ -7,6 +7,7 @@ Deploy [AdGuard Home](https://adguard.com/adguard-home/overview.html) to Hetzner
 This project deploys AdGuard Home (network-wide DNS filter) on Hetzner Cloud with:
 
 - **Hetzner Cloud** server (default: cx23 – 2 vCPUs, 4GB RAM)
+- **Debian 13** (Trixie) – sovereign, EU-aligned base OS; managementless unattended-upgrades, SSH hardening, fail2ban
 - **Tailscale** for secure private admin UI access (web UI not exposed publicly)
 - **Caddy** reverse proxy with Let's Encrypt for DNS-over-HTTPS (DoH)
 - **Public DoH** at `dns.<domain>/dns-query` for client devices
@@ -34,6 +35,22 @@ Before getting started, ensure you have:
 | **Total** | | **~$4/month** |
 
 *20TB traffic included. Tailscale and Cloudflare free tiers cover the rest.*
+
+## EU Digital Sovereignty
+
+This stack is designed with **EU digital sovereignty** and data protection in mind:
+
+| Component | Sovereignty / EU alignment |
+|-----------|----------------------------|
+| **Debian 13** | Community-driven, no corporate owner. Widely used in EU public sector. Independent, transparent development. |
+| **Hetzner Cloud** | German company, EU data centers (Falkenstein, Nuremberg, Helsinki). GDPR-compliant. [European Cloud](https://www.hetzner.com/cloud) offering. |
+| **AdGuard Home** | Open-source DNS filter. Self-hosted; your DNS data stays on your server. |
+| **Caddy** | Open-source web server. Apache 2.0 license. |
+| **Tailscale** | Admin access only; no DNS data flows through Tailscale for DoH. |
+
+**Data residency**: Choose Hetzner locations `fsn1` (Falkenstein, Germany), `nbg1` (Nuremberg, Germany), or `hel1` (Helsinki, Finland) to keep data within the EU/EEA.
+
+**Why Debian?** Debian is a fully community-driven project with no commercial backing. It aligns with EU goals for digital sovereignty: independence from non-EU vendors, transparency, and long-term support without vendor lock-in.
 
 ## Quick Start
 
@@ -103,6 +120,7 @@ environment:
 config:
   adguard-hetzner:serverType: cx23
   adguard-hetzner:location: fsn1
+  adguard-hetzner:ipv6Only: false   # Set true for IPv6-only (cheaper, AAAA record)
 ```
 
 ### 4. Initialize Pulumi Stack
@@ -117,6 +135,7 @@ pulumi stack init dev
 # Optional: Configure custom settings (or use Pulumi.dev.yaml)
 pulumi config set serverType cx23   # Default: cx23 (2 vCPU, 4GB)
 pulumi config set location fsn1     # Default: fsn1 (Falkenstein, Germany)
+pulumi config set ipv6Only false    # Set true for IPv6-only (cheaper, AAAA record)
 ```
 
 *If not using ESC*, set config manually:
@@ -152,8 +171,9 @@ pulumi stack output adguardAdminPassword --show-secrets
 # DoH endpoint for clients
 pulumi stack output dohUrl
 
-# Server IP
+# Server IP (use ipv6Address when ipv6Only is true)
 pulumi stack output ipv4Address
+pulumi stack output ipv6Address
 ```
 
 Copy the web UI URL and admin password. Log in and change the password immediately.
@@ -161,13 +181,14 @@ Copy the web UI URL and admin password. Log in and change the password immediate
 ### 7. Post-Deploy
 
 1. **Change admin password** – Access the web UI via `https://<hostname>.<tailnet>.ts.net` (Tailscale) and go to Settings → Profile.
+2. **Security updates** – Managementless: unattended-upgrades runs daily (security + stable updates). No prompts; reboots at 03:00 when needed.
 
-2. **Verify DoH**:
+3. **Verify DoH**:
    ```bash
    curl -H "Accept: application/dns-json" "https://dns.example.com/dns-query?name=example.com&type=A"
    ```
 
-3. **Configure devices** – Use `https://dns.example.com/dns-query` as the DoH server on your devices.
+4. **Configure devices** – Use `https://dns.example.com/dns-query` as the DoH server on your devices.
 
 ### 8. Verify Installation
 
@@ -215,6 +236,7 @@ This deployment pre-configures AdGuard Home with security-hardened settings and 
 - Safe Browsing (AdGuard browsing security): Enabled
 - Trusted proxies: Caddy, Tailscale, private ranges
 - Refuse ANY queries (mitigates amplification)
+- Client access: allow all by default (see [Client Access Control](#client-access-control) to restrict)
 
 **Blocklists (9 enabled):**
 
@@ -307,6 +329,20 @@ This deployment uses Tailscale as a zero-trust network layer for the admin UI. H
 - ✅ **No public admin exposure**: AdGuard admin UI never exposed to the internet
 - ✅ **Automatic HTTPS**: Tailscale provides TLS certificates for MagicDNS
 
+### Host Security (Debian & Docker)
+
+The deployment applies security best practices to the Debian host and Docker:
+
+| Layer | Measure | Description |
+|-------|---------|-------------|
+| **Unattended-upgrades** | Managementless updates | Security + stable updates (Debian-Security, trixie-updates). No prompts: `Dpkg::Options --force-confdef/--force-confold` for config files, `apt-listchanges frontend=none`. Auto-reboot at 03:00 when needed. Removes unused deps and old kernels. |
+| **SSH hardening** | `sshd_config.d/99-hardening.conf` | Key-based auth only (`PasswordAuthentication no`), `PermitRootLogin prohibit-password`, `MaxAuthTries 3`, `ClientAliveInterval 300`. |
+| **fail2ban** | SSH jail | 5 retries → 1h ban. Protects against brute-force on port 22. |
+| **Docker daemon** | `daemon.json` | Log rotation (10MB × 3 files), `live-restore` so containers survive daemon restarts. |
+| **AdGuard container** | `--security-opt=no-new-privileges` | Prevents privilege escalation inside the container. |
+
+**Managementless design**: The host requires no manual intervention for updates. Config file conflicts are resolved automatically (keep defaults for unmodified files, keep yours for modified). Reboots occur at 03:00 when required. Ensure SSH key access works before relying on Tailscale—if Tailscale fails, you need key-based SSH to recover.
+
 ### AdGuard Home Security
 
 Per [AdGuard's running securely guide](https://adguard-dns.io/kb/adguard-home/running-securely/). See [`docs/SECURITY_CHECKLIST.md`](docs/SECURITY_CHECKLIST.md) for a full checklist.
@@ -316,6 +352,30 @@ Per [AdGuard's running securely guide](https://adguard-dns.io/kb/adguard-home/ru
 - **Refuse ANY**: Enabled to mitigate amplification attacks
 - **Trusted proxies**: Caddy and Tailscale subnets configured for correct client IP logging
 - **Auth lockout**: 5 failed attempts, 15-minute block
+
+### Client Access Control
+
+By default, any client that can reach the DoH endpoint can use your DNS server (`allowed_clients: []` = allow all). For a private or family setup, restrict access:
+
+| Setting | Purpose |
+|---------|---------|
+| **allowed_clients** | If non-empty, only these clients can use DNS. Others are rejected. |
+| **disallowed_clients** | Block specific clients (ignored when `allowed_clients` is set). |
+| **Persistent Clients** | Named clients with per-client settings (blocklists, safe search, etc.). |
+
+**Configure at deploy time** in `index.ts` (bootstrap config):
+
+```yaml
+dns:
+  allowed_clients:
+    - 192.168.1.0/24      # Home LAN
+    - 100.64.0.0/10       # Tailscale
+    - 10.0.0.0/8          # Private
+```
+
+**Configure after deployment** via AdGuard web UI: **Settings → Client settings** → add clients by IP, CIDR, or ClientID.
+
+**Note:** With DoH behind Caddy, AdGuard sees client IPs from `X-Forwarded-For` / `X-Real-IP` (trusted proxies). Ensure your clients' IP ranges are in `trusted_proxies` for correct identification.
 
 ### Recommendations
 
@@ -409,6 +469,14 @@ pulumi config set location hel1  # Helsinki, Finland
 pulumi config set location ash   # Ashburn, USA
 ```
 
+### IPv6-only
+
+Use IPv6-only to save on Hetzner's IPv4 cost (no separate IPv4 address). Cloudflare will get an AAAA record instead of A. DoH and SSH require IPv6 connectivity.
+
+```bash
+pulumi config set ipv6Only true
+```
+
 ### Configuration Reference
 
 | Key | Required | Description |
@@ -419,7 +487,9 @@ pulumi config set location ash   # Ashburn, USA
 | `tailscaleAuthKey` | Yes (secret) | Tailscale auth key |
 | `serverType` | No | Hetzner server type (default: `cx23`) |
 | `location` | No | Hetzner location (default: `fsn1`) |
-| `cloudflareZoneId` | No | Cloudflare zone ID for A record |
+| `image` | No | Hetzner server image (default: `debian-13`). Use `debian-12` if Debian 13 is not yet available in your region. |
+| `ipv6Only` | No | Use IPv6-only (no IPv4). Creates AAAA record instead of A. Default: `false` |
+| `cloudflareZoneId` | No | Cloudflare zone ID for A/AAAA record |
 | `cloudflare:apiToken` | No (secret) | Cloudflare API token |
 
 ## Useful Commands
@@ -456,6 +526,19 @@ tailscale ip                # Show Tailscale IP
 sudo tailscale serve status  # Show HTTPS proxy status
 ```
 
+### Security (unattended-upgrades, fail2ban)
+
+```bash
+# Unattended-upgrades: last run, pending updates
+grep -E "^(Start|End):" /var/log/unattended-upgrades/unattended-upgrades.log | tail -4
+
+# fail2ban: SSH jail status
+sudo fail2ban-client status sshd
+
+# Pending security updates
+apt list --upgradable 2>/dev/null | grep -i security
+```
+
 ## Configuring Devices for DoH
 
 After deployment, configure your devices to use the DoH endpoint:
@@ -470,13 +553,17 @@ See [AdGuard DoH setup guide](https://adguard-dns.io/kb/adguard-home/getting-sta
 
 ## Manual DNS (without Cloudflare)
 
-If you don't set `cloudflareZoneId`, create the A record manually:
+If you don't set `cloudflareZoneId`, create the record manually:
 
 ```
+# IPv4 (default)
 dns.example.com  A  <VPS_IPV4>
+
+# IPv6-only (when ipv6Only is true)
+dns.example.com  AAAA  <VPS_IPV6>
 ```
 
-Get the IP from `pulumi stack output ipv4Address`.
+Get the IP from `pulumi stack output ipv4Address` or `pulumi stack output ipv6Address`.
 
 ## Upgrading
 
@@ -505,8 +592,9 @@ See [Verify Releases](https://github.com/AdguardTeam/AdguardHome/wiki/Verify-Rel
 # Check Caddy logs
 journalctl -u caddy -f
 
-# Verify DNS A record points to server
+# Verify DNS record points to server (A or AAAA when ipv6Only)
 pulumi stack output ipv4Address
+pulumi stack output ipv6Address
 ```
 
 ### Web UI Unreachable
@@ -554,7 +642,10 @@ This is intentional. Caddy terminates TLS and proxies DoH to AdGuard over HTTP. 
 ssh root@<hostname>.<tailnet>.ts.net
 
 # Via public IP (fallback, use generated key)
+# IPv4:
 ssh -i <(pulumi stack output privateKey --show-secrets) root@$(pulumi stack output ipv4Address)
+# IPv6-only:
+ssh -i <(pulumi stack output privateKey --show-secrets) root@[$(pulumi stack output ipv6Address)]
 ```
 
 ## Cleanup
@@ -569,7 +660,7 @@ This will:
 - Delete the Hetzner server
 - Remove firewall rules
 - Delete SSH keys
-- Remove Cloudflare A record (if configured)
+- Remove Cloudflare A/AAAA record (if configured)
 - Remove Tailscale connection (manually remove from admin console if needed)
 
 ## Documentation

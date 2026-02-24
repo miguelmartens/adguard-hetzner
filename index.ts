@@ -10,6 +10,7 @@ const config = new pulumi.Config();
 // Hetzner (cx23 ~€3.62/mo; cpx11 ~€4.35/mo; cax21 ~€9/mo)
 const serverType = config.get("serverType") ?? "cx23";
 const location = config.get("location") ?? "fsn1";
+const ipv6Only = config.getBoolean("ipv6Only") ?? false;
 
 // Domain: base domain only (e.g. example.com). The dns. prefix is added automatically — DoH at dns.<domain>
 const domain = config.require("domain");
@@ -218,13 +219,16 @@ set -e
 
 export DEBIAN_FRONTEND=noninteractive
 
-# System updates
+# System updates and cleanup
 apt-get update
 apt-get upgrade -y
+apt-get autoremove -y
 
-# Install unattended-upgrades for automatic security updates
-apt-get install -y unattended-upgrades apt-listchanges
+# Install unattended-upgrades and fail2ban for automatic security
+apt-get install -y unattended-upgrades apt-listchanges fail2ban
 
+# Unattended-upgrades: managementless - security + updates, no prompts, auto-reboot
+CODENAME=\$(lsb_release -cs 2>/dev/null || echo "trixie")
 cat > /etc/apt/apt.conf.d/20auto-upgrades << 'APTEOF'
 APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
@@ -232,19 +236,74 @@ APT::Periodic::Download-Upgradeable-Packages "1";
 APT::Periodic::AutocleanInterval "7";
 APTEOF
 
-cat > /etc/apt/apt.conf.d/50unattended-upgrades-custom << 'APTEOF'
+# Never prompt on config file changes: keep defaults for unmodified, keep ours for modified
+cat > /etc/apt/apt.conf.d/80dpkg-force-confdef << 'DPKGEOF'
+Dpkg::Options {
+   "--force-confdef";
+   "--force-confold";
+}
+DPKGEOF
+
+# apt-listchanges: frontend=none prevents any prompts (managementless)
+cat > /etc/apt/listchanges.conf << 'LISTEOF'
+[apt]
+frontend=none
+LISTEOF
+
+cat > /etc/apt/apt.conf.d/50unattended-upgrades-custom << APTUNATTENDED
+Unattended-Upgrade::Allowed-Origins {
+    "origin=Debian,codename=\$CODENAME,label=Debian-Security";
+    "origin=Debian,codename=\$CODENAME-updates,label=Debian";
+};
 Unattended-Upgrade::Automatic-Reboot "true";
 Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
 Unattended-Upgrade::Automatic-Reboot-Time "03:00";
-APTEOF
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::SyslogEnable "true";
+APTUNATTENDED
 
 systemctl enable unattended-upgrades
 systemctl start unattended-upgrades
+
+# SSH hardening (key-based auth only, reduce attack surface)
+mkdir -p /etc/ssh/sshd_config.d
+cat > /etc/ssh/sshd_config.d/99-hardening.conf << 'SSHEOF'
+PermitRootLogin prohibit-password
+PasswordAuthentication no
+MaxAuthTries 3
+ClientAliveInterval 300
+ClientAliveCountMax 2
+X11Forwarding no
+SSHEOF
+systemctl restart ssh
+
+# fail2ban: protect SSH (conservative: 5 retries, 1h ban)
+cat > /etc/fail2ban/jail.d/sshd.local << 'FAIL2BANEOF'
+[sshd]
+enabled = true
+maxretry = 5
+bantime = 1h
+findtime = 10m
+FAIL2BANEOF
+systemctl enable fail2ban
+systemctl start fail2ban
 
 # Install Docker
 curl -fsSL https://get.docker.com | sh
 systemctl enable docker
 systemctl start docker
+
+# Docker daemon security: log limits, live-restore
+mkdir -p /etc/docker
+cat > /etc/docker/daemon.json << 'DOCKEREOF'
+{
+  "log-driver": "json-file",
+  "log-opts": {"max-size": "10m", "max-file": "3"},
+  "live-restore": true
+}
+DOCKEREOF
+systemctl restart docker
 
 # Install Caddy
 apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl
@@ -262,9 +321,11 @@ AGHEOF
 chmod 644 /opt/adguardhome/conf/AdGuardHome.yaml
 
 # Run AdGuard Home via Docker (HTTP on 8080 only; plain DNS disabled)
+# Security: no-new-privileges prevents privilege escalation inside container
 docker run -d \\
   --name adguardhome \\
   --restart unless-stopped \\
+  --security-opt=no-new-privileges:true \\
   -v /opt/adguardhome/work:/opt/adguardhome/work \\
   -v /opt/adguardhome/conf:/opt/adguardhome/conf \\
   -p 127.0.0.1:8080:80 \\
@@ -300,13 +361,16 @@ echo "DoH endpoint: https://${dohHost}/dns-query"
 const server = new hcloud.Server("adguard-server", {
   serverType: serverType,
   location: location,
-  image: "ubuntu-24.04",
+  image: config.get("image") ?? "debian-13",
   sshKeys: [hcloudSshKey.id],
   firewallIds: [firewall.id.apply((id: string) => Number(id))],
   userData: userData,
   labels: {
     purpose: "adguard-home",
   },
+  ...(ipv6Only && {
+    publicNets: [{ ipv4Enabled: false, ipv6Enabled: true }],
+  }),
 });
 
 // Cloudflare DNS record (optional - only if cloudflareZoneId is set)
@@ -315,8 +379,8 @@ if (cloudflareZoneId) {
   dnsRecord = new cloudflare.DnsRecord("adguard-dns-record", {
     zoneId: cloudflareZoneId,
     name: "dns",
-    type: "A",
-    content: server.ipv4Address,
+    type: ipv6Only ? "AAAA" : "A",
+    content: ipv6Only ? server.ipv6Address : server.ipv4Address,
     ttl: 300,
     proxied: false, // DNS-over-HTTPS requires direct connection; set true for DDoS proxy if desired
     comment: "Managed by Pulumi (adguard-hetzner)",
@@ -325,6 +389,8 @@ if (cloudflareZoneId) {
 
 // Exports
 export const ipv4Address = server.ipv4Address;
+export const ipv6Address = server.ipv6Address;
+export const ipv6OnlyMode = ipv6Only;
 export const privateKey = sshKey.privateKeyOpenssh;
 export const tailscaleHostname = server.name;
 export const webUiUrl = pulumi.interpolate`https://${server.name}.${tailnetDnsName}`;
