@@ -7,8 +7,12 @@
     ":separateMajorReleases"
   ],
   "timezone": "UTC",
-  "schedule": ["before 6am on monday"],
-  "labels": ["dependencies"],
+  "schedule": [
+    "before 6am on monday"
+  ],
+  "labels": [
+    "dependencies"
+  ],
   "assignees": [],
   "reviewers": [],
   "prConcurrentLimit": 5,
@@ -23,38 +27,61 @@
   "rangeStrategy": "bump",
   "vulnerabilityAlerts": {
     "enabled": true,
-    "labels": ["security"],
+    "labels": [
+      "security"
+    ],
     "assignees": [],
     "reviewers": []
   },
   "packageRules": [
     {
       "description": "Pin GitHub Action digests",
-      "matchManagers": ["github-actions"],
+      "matchManagers": [
+        "github-actions"
+      ],
       "pinDigests": true,
       "automerge": false,
       "groupName": "GitHub Actions"
     },
     {
       "description": "Group all non-major npm dependencies",
-      "matchManagers": ["npm"],
-      "matchUpdateTypes": ["minor", "patch"],
+      "matchManagers": [
+        "npm"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
       "groupName": "npm dependencies (non-major)",
       "automerge": false
     },
     {
       "description": "Separate major npm updates",
-      "matchManagers": ["npm"],
-      "matchUpdateTypes": ["major"],
+      "matchManagers": [
+        "npm"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
       "groupName": null,
       "automerge": false,
-      "labels": ["dependencies", "major-update"]
+      "labels": [
+        "dependencies",
+        "major-update"
+      ]
     },
     {
       "description": "Security updates - high priority",
-      "matchDatasources": ["npm"],
-      "matchUpdateTypes": ["patch"],
-      "labels": ["security", "automerge"],
+      "matchDatasources": [
+        "npm"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "labels": [
+        "security",
+        "automerge"
+      ],
       "prPriority": 10,
       "automerge": true,
       "automergeType": "pr",
@@ -62,21 +89,32 @@
     },
     {
       "description": "Pulumi packages",
-      "matchPackagePatterns": ["^@pulumi/"],
       "groupName": "Pulumi packages",
       "automerge": false,
-      "schedule": ["before 6am on monday"]
+      "schedule": [
+        "before 6am on monday"
+      ],
+      "matchPackageNames": [
+        "/^@pulumi//"
+      ]
     },
     {
       "description": "TypeScript and type definitions",
-      "matchPackagePatterns": ["^@types/", "typescript"],
       "groupName": "TypeScript and types",
-      "automerge": false
+      "automerge": false,
+      "matchPackageNames": [
+        "/^@types//",
+        "/typescript/"
+      ]
     },
     {
       "description": "Lock file maintenance",
-      "matchUpdateTypes": ["lockFileMaintenance"],
-      "schedule": ["before 6am on monday"],
+      "matchUpdateTypes": [
+        "lockFileMaintenance"
+      ],
+      "schedule": [
+        "before 6am on monday"
+      ],
       "automerge": true,
       "automergeType": "pr",
       "platformAutomerge": true
@@ -84,12 +122,14 @@
   ],
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["before 6am on monday"]
+    "schedule": [
+      "before 6am on monday"
+    ]
   },
   "npm": {
     "minimumReleaseAge": "3 days"
   },
-  "stabilityDays": 3,
+  "minimumReleaseAge": "3 days",
   "ignoreDeps": [],
   "ignorePaths": [
     "**/node_modules/**",
