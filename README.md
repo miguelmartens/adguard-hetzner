@@ -7,7 +7,7 @@ Deploy [AdGuard Home](https://adguard.com/adguard-home/overview.html) to Hetzner
 This project deploys AdGuard Home (network-wide DNS filter) on Hetzner Cloud with:
 
 - **Hetzner Cloud** server (default: cx23 – 2 vCPUs, 4GB RAM)
-- **Debian 13** (Trixie) – sovereign, EU-aligned base OS with unattended-upgrades, SSH hardening, fail2ban
+- **Debian 13** (Trixie) – sovereign, EU-aligned base OS; managementless unattended-upgrades, SSH hardening, fail2ban
 - **Tailscale** for secure private admin UI access (web UI not exposed publicly)
 - **Caddy** reverse proxy with Let's Encrypt for DNS-over-HTTPS (DoH)
 - **Public DoH** at `dns.<domain>/dns-query` for client devices
@@ -181,7 +181,7 @@ Copy the web UI URL and admin password. Log in and change the password immediate
 ### 7. Post-Deploy
 
 1. **Change admin password** – Access the web UI via `https://<hostname>.<tailnet>.ts.net` (Tailscale) and go to Settings → Profile.
-2. **Security updates** – Unattended-upgrades runs daily. Security patches apply automatically; reboots occur at 03:00 when needed.
+2. **Security updates** – Managementless: unattended-upgrades runs daily (security + stable updates). No prompts; reboots at 03:00 when needed.
 
 3. **Verify DoH**:
    ```bash
@@ -335,13 +335,13 @@ The deployment applies security best practices to the Debian host and Docker:
 
 | Layer | Measure | Description |
 |-------|---------|-------------|
-| **Unattended-upgrades** | Automatic security patches | Security updates only (Debian-Security). Auto-reboot at 03:00 if kernel updates require it. Removes unused dependencies and old kernels. |
+| **Unattended-upgrades** | Managementless updates | Security + stable updates (Debian-Security, trixie-updates). No prompts: `Dpkg::Options --force-confdef/--force-confold` for config files, `apt-listchanges frontend=none`. Auto-reboot at 03:00 when needed. Removes unused deps and old kernels. |
 | **SSH hardening** | `sshd_config.d/99-hardening.conf` | Key-based auth only (`PasswordAuthentication no`), `PermitRootLogin prohibit-password`, `MaxAuthTries 3`, `ClientAliveInterval 300`. |
 | **fail2ban** | SSH jail | 5 retries → 1h ban. Protects against brute-force on port 22. |
 | **Docker daemon** | `daemon.json` | Log rotation (10MB × 3 files), `live-restore` so containers survive daemon restarts. |
 | **AdGuard container** | `--security-opt=no-new-privileges` | Prevents privilege escalation inside the container. |
 
-**Unattended-upgrades schedule**: Runs daily. Reboots at 03:00 when needed. Ensure SSH key access works before relying on Tailscale—if Tailscale fails, you need key-based SSH to recover.
+**Managementless design**: The host requires no manual intervention for updates. Config file conflicts are resolved automatically (keep defaults for unmodified files, keep yours for modified). Reboots occur at 03:00 when required. Ensure SSH key access works before relying on Tailscale—if Tailscale fails, you need key-based SSH to recover.
 
 ### AdGuard Home Security
 

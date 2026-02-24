@@ -20,8 +20,9 @@ This project has **implemented many security best practices out of the box**:
 **Infrastructure Security:**
 - ✅ Hetzner Cloud Firewall enabled
 - ✅ Only SSH (22), HTTP (80), HTTPS (443) exposed; plain DNS (53) disabled
-- ✅ Debian 13 with automatic security updates (`unattended-upgrades`)
-  - Security updates only (Debian-Security origin)
+- ✅ Debian 13 with managementless `unattended-upgrades`
+  - Security + stable updates (Debian-Security, trixie-updates)
+  - No prompts: `Dpkg::Options --force-confdef/--force-confold`, `apt-listchanges frontend=none`
   - Daily updates, automatic reboot at 03:00 if needed
   - Remove unused dependencies and old kernels
 - ✅ SSH hardening: key-only auth, `PermitRootLogin prohibit-password`, `MaxAuthTries 3`
@@ -177,11 +178,11 @@ See the `renovate.json` file in the repository root for full configuration.
 ### Server Hardening
 
 - [x] Keep Debian system packages **up to date**
-- [x] Configure **automatic security updates** via `unattended-upgrades`
+- [x] Configure **managementless** `unattended-upgrades`
   - [x] Install `unattended-upgrades` package
-  - [x] Security updates only (Debian-Security origin)
+  - [x] Security + stable updates (Debian-Security, trixie-updates)
+  - [x] No prompts: `Dpkg::Options --force-confdef/--force-confold`, `apt-listchanges frontend=none`
   - [x] Enable daily update checks
-  - [x] Enable automatic upgrade installation
   - [x] Configure automatic reboot if needed (03:00)
   - [x] Remove unused dependencies and old kernels
   - [ ] Review `/var/log/unattended-upgrades/` logs periodically

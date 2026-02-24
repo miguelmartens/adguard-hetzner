@@ -227,7 +227,7 @@ apt-get autoremove -y
 # Install unattended-upgrades and fail2ban for automatic security
 apt-get install -y unattended-upgrades apt-listchanges fail2ban
 
-# Unattended-upgrades: security updates only, auto-reboot at 03:00
+# Unattended-upgrades: managementless - security + updates, no prompts, auto-reboot
 CODENAME=\$(lsb_release -cs 2>/dev/null || echo "trixie")
 cat > /etc/apt/apt.conf.d/20auto-upgrades << 'APTEOF'
 APT::Periodic::Update-Package-Lists "1";
@@ -236,15 +236,31 @@ APT::Periodic::Download-Upgradeable-Packages "1";
 APT::Periodic::AutocleanInterval "7";
 APTEOF
 
+# Never prompt on config file changes: keep defaults for unmodified, keep ours for modified
+cat > /etc/apt/apt.conf.d/80dpkg-force-confdef << 'DPKGEOF'
+Dpkg::Options {
+   "--force-confdef";
+   "--force-confold";
+}
+DPKGEOF
+
+# apt-listchanges: frontend=none prevents any prompts (managementless)
+cat > /etc/apt/listchanges.conf << 'LISTEOF'
+[apt]
+frontend=none
+LISTEOF
+
 cat > /etc/apt/apt.conf.d/50unattended-upgrades-custom << APTUNATTENDED
 Unattended-Upgrade::Allowed-Origins {
     "origin=Debian,codename=\$CODENAME,label=Debian-Security";
+    "origin=Debian,codename=\$CODENAME-updates,label=Debian";
 };
 Unattended-Upgrade::Automatic-Reboot "true";
 Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
 Unattended-Upgrade::Automatic-Reboot-Time "03:00";
 Unattended-Upgrade::Remove-Unused-Dependencies "true";
 Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::SyslogEnable "true";
 APTUNATTENDED
 
 systemctl enable unattended-upgrades
