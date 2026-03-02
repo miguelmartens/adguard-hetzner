@@ -2,7 +2,7 @@
   "name": "adguard-hetzner",
   "main": "index.ts",
   "engines": {
-    "node": ">=22"
+    "node": ">=24.14.0"
   },
   "dependencies": {
     "@pulumi/cloudflare": "^6.0.0",
